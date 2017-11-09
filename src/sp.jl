@@ -1,7 +1,9 @@
 using JuMP
 using GLPKMathProgInterface
-import Base.Collections: PriorityQueue, enqueue!, dequeue!
-import Base.Order.Reverse
+using DataStructures
+
+import DataStructures: PriorityQueue, enqueue!, dequeue!
+import Base.Reverse
 
 export solve_sp    
 export dequeue!
@@ -51,35 +53,35 @@ function maximize_fhat(l, u, w, problem::SigmoidalProgram, m = Model(solver=GLPK
     fs,dfs = problem.fs, problem.dfs
     
     # Define our variables to be inside a box
-    @defVar(m, x[i=1:nvar])
+    @variable(m, x[i=1:nvar])
     for i=1:nvar 
-        setLower(x[i], l[i])
-        setUpper(x[i], u[i])
+        setlowerbound(x[i], l[i])
+        setupperbound(x[i], u[i])
     end
     # epigraph variable
-    @defVar(m, t[i=1:nvar])
+    @variable(m, t[i=1:nvar])
     # Require that t be in the hypograph of fhat, approximating as pwl function
     # At first, we add only the bit of fhat from l to w, and the tangent at u
     for i=1:nvar
         if w[i] > l[i]
             slopeatl = (fs[i](w[i]) - fs[i](l[i]))/(w[i] - l[i])
             offsetatl = fs[i](l[i])
-            @addConstraint(m, t[i] <= offsetatl + slopeatl*(x[i] - l[i]))
+            @constraint(m, t[i] <= offsetatl + slopeatl*(x[i] - l[i]))
         else
-            @addConstraint(m, t[i] <= fs[i](l[i]) + dfs[i](l[i])*(x[i] - l[i]))
+            @constraint(m, t[i] <= fs[i](l[i]) + dfs[i](l[i])*(x[i] - l[i]))
         end
-        @addConstraint(m, t[i] <= fs[i](u[i]) + dfs[i](u[i])*(x[i] - u[i]))
+        @constraint(m, t[i] <= fs[i](u[i]) + dfs[i](u[i])*(x[i] - u[i]))
     end
     # Add other problem constraints
     addConstraints!(m, x, problem)
     
-    @setObjective(m, Max, sum(t))
+    @objective(m, Max, sum(t))
     
     # Now solve and add hypograph constraints until the solution stabilizes
     status = solve(m)
     for i=1:maxiters
-        x_val = getValue(x)
-        t_val = getValue(t)
+        x_val = getvalue(x)
+        t_val = getvalue(t)
         
         solved = true
         
@@ -89,7 +91,7 @@ function maximize_fhat(l, u, w, problem::SigmoidalProgram, m = Model(solver=GLPK
             if xi > w[i]
                 if ti > fs[i](xi) + TOL
                     solved = false
-                    @addConstraint(m, t[i] <= fs[i](xi) + dfs[i](xi)*(x[i] - xi))
+                    @constraint(m, t[i] <= fs[i](xi) + dfs[i](xi)*(x[i] - xi))
                 end
             end
         end   
@@ -102,7 +104,7 @@ function maximize_fhat(l, u, w, problem::SigmoidalProgram, m = Model(solver=GLPK
     end
     # refine t a bit to make sure it's really on the convex hull
     t = zeros(nvar)
-    x_val = getValue(x)
+    x_val = getvalue(x)
     for i=1:nvar
         xi = x_val[i]
         if xi >= w[i]
@@ -186,7 +188,8 @@ function solve_sp(l, u, problem::SigmoidalProgram;
     push!(bestnodes,root)
     push!(ubs,root.ub)
     push!(lbs,root.lb)
-    pq = PriorityQueue(Node[root], Float64[root.ub], Reverse)
+    # pq = PriorityQueue(Node[root], Float64[root.ub], Reverse)
+    pq = PriorityQueue(Reverse, zip(Node[root], Float64[root.ub]))
     for i=1:maxiters
         if ubs[end] - lbs[end] < TOL 
             if verbose
