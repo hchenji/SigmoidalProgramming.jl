@@ -10,8 +10,13 @@ u = rand(nvar)
 A = rand(nconstr, nvar)
 b = rand(nconstr)
 z = zeros(nvar)
-fs = fill(logistic, nvar)
-dfs = fill(logistic_prime, nvar)
+
+fs = Array{Function}(nvar)
+dfs = Array{Function}(nvar)
+
+fill!(fs,logistic)
+fill!(dfs,logistic_prime)
+
 problem = LinearSP(fs, dfs, z, A, b)
 
 # branch and bound
