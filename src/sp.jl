@@ -1,6 +1,7 @@
 using JuMP
 using GLPKMathProgInterface
 using DataStructures
+using Gurobi
 
 import DataStructures: PriorityQueue, enqueue!, dequeue!
 import Base.Reverse
@@ -46,7 +47,7 @@ function bisection(f, a, b, tol=1e-9, maxiters=1000)
 end
 
 ## maximize concave hull
-function maximize_fhat(l, u, w, problem::SigmoidalProgram, m = Model(solver=GLPKSolverLP()); 
+function maximize_fhat(l, u, w, problem::SigmoidalProgram, m = Model(solver=GurobiSolver(OutputFlag=0)); 
                        maxiters = 10, TOL = 1e-6, verbose=false)
     nvar = length(l)
     maxiters *= nvar
@@ -197,6 +198,14 @@ function solve_sp(l, u, problem::SigmoidalProgram;
             end
             break 
         end
+
+        if (length(pq) == 0)
+            if verbose
+                println("bad problem instance")
+            end
+            return pq, bestnodes, lbs, ubs
+        end
+
         node = dequeue!(pq)
         push!(ubs,min(node.ub, ubs[end]))
         left, right = split(node, problem; TOL=subtol)
